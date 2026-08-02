@@ -39,9 +39,10 @@ input,textarea,select{font-family:inherit;}
 .nav-item:hover:not(.active){background:#fbf3df;}
 #main{flex:1;overflow-y:auto;background:var(--coffee);position:relative;}
 .view{padding:20px;min-height:100%;}
+.content{position:relative;z-index:1;min-height:100%;padding:20px;}
 
 /* ===== Home ===== */
-.home{background:var(--cream);min-height:100%;}
+.home{background:transparent;min-height:100%;}
 .home .motto{border:2px dashed var(--accent);border-radius:14px;padding:12px 14px;min-height:54px;font-size:16px;width:100%;resize:none;background:rgba(255,255,255,.5);}
 .home .mood-row{display:flex;align-items:center;gap:12px;margin:14px 0;}
 .home .mood-emoji{font-size:54px;line-height:1;}
@@ -60,6 +61,11 @@ input,textarea,select{font-family:inherit;}
 .sub-tab{border:2px dashed var(--accent);border-radius:20px;padding:6px 16px;color:var(--accent);font-weight:600;background:#fff;}
 .sub-tab.active{background:var(--accent);color:#fff;border-style:solid;}
 .sub-tab .x{margin-left:6px;opacity:.7;}
+.en-top-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+.en-mini{font-size:12px;padding:5px 10px;}
+.exam-cd{background:var(--accent);color:#fff;border-radius:14px;padding:12px 16px;margin-bottom:12px;text-align:center;}
+.exam-cd .cd-num{font-size:24px;font-weight:800;line-height:1.2;}
+.exam-cd .cd-sub{font-size:12px;opacity:.92;margin-top:3px;}
 
 /* ===== Generic inputs ===== */
 .field{margin-bottom:12px;}
@@ -235,7 +241,7 @@ function defaultState(){
     grad:{tabs:['毕业论文','提醒事项'],data:{}},
     exam:{tabs:['国考','省考','事业编','央国企','高校'],data:{},归纳:{}},
     work:{tabs:['央国企','私企','事业编','高校','其它'],data:{}},
-    english:{collected:[],unknown:[],proficient:[],unproficient:[],history:{}},
+    english:{collected:[],unknown:[],proficient:[],unproficient:[],history:{},cursor:null},
     career:[],remind:{tabs:['生活','做人','工作','恋爱','赚钱','其它'],data:{}},
     love:{anniversary:'',moodDaily:{},images:[],
       memory:[],wishTravel:[],wishFood:[],moodCalendar:{},
@@ -327,13 +333,19 @@ function bgLayer(id){
 
 function renderMain(){
   const main=$('#main');
-  if(current==='home'){main.style.background='var(--cream)';main.innerHTML=bgLayer('home')+`<div class="content">${homeView()}</div>`;}
-  else{
+  const bgImg=state.moduleBg[current];
+  main.style.backgroundColor=pageBg(current);
+  main.style.backgroundImage=bgImg?`url('${bgImg}')`:'none';
+  main.style.backgroundSize='cover';
+  main.style.backgroundPosition='center';
+  main.style.backgroundRepeat='no-repeat';
+  if(current==='home'){
+    main.innerHTML=`<div class="content">${homeView()}</div>`;
+  }else{
     const c=state.columns.find(c=>c.id===current);
-    main.style.background=pageBg(current);
     const views={todo:todoView,diet:dietView,grad:gradView,exam:examView,work:workView,english:englishView,career:careerView,remind:remindView,love:loveView,note:noteView,money:moneyView,future:futureView};
     const fn=views[c.type]||genericView;
-    main.innerHTML=bgLayer(current)+`<div class="content">${fn(c)}</div>`;
+    main.innerHTML=`<div class="content">${fn(c)}</div>`;
   }
 }
 
@@ -386,7 +398,10 @@ function calendarHTML(){
 
 /* ---------- Diet (减脂小妙招) ---------- */
 function dietView(){
-  const d=state.diet;const tab=d.dietTab||'食谱';
+  const d=state.diet;
+  d.tabs=d.tabs||['食谱','体重','饮食','运动'];
+  d.recipes=d.recipes||[];d.weight=d.weight||[];d.meals=d.meals||[];d.exercise=d.exercise||[];
+  const tab=d.dietTab||'食谱';
   const tabs=d.tabs.map(t=>`<div class="sub-tab ${tab===t?'active':''}" data-act="dietTab" data-t="${t}">${t}</div>`).join('');
   let body='';
   if(tab==='食谱')body=recipeBody();
@@ -553,8 +568,12 @@ function examView(){
   const sumBtn=`<button class="btn ghost" data-act="exam归纳" style="margin-bottom:12px">📚 我的归纳</button>`;
   d.data[tab]=d.data[tab]||[];
   const cards=d.data[tab].map((it,i)=>{
-    const cd=it.examDate?countdown(it.examDate):'';
+    const left=it.examDate?cdDays(it.examDate):null;
+    const cdBanner=left==null
+      ? `<div class="exam-cd"><span class="cd-sub">未设置考试日期</span></div>`
+      : `<div class="exam-cd"><div class="cd-num">${left>0?'还剩 '+left+' 天':left===0?'今天考试！':'已过去 '+Math.abs(left)+' 天'}</div><div class="cd-sub">考试日期：${esc(it.examDate)}</div></div>`;
     return `<div class="card">
+      ${cdBanner}
       <div class="row">
         <div class="field" style="flex:2"><label>标题</label><input class="inp" data-epx="title" data-i="${i}" value="${esc(it.title)}"></div>
         <div class="field"><label>归纳分类</label><input class="inp" data-epx="归纳" data-i="${i}" value="${esc(it.归纳)}" placeholder="如：行测"></div>
@@ -563,7 +582,6 @@ function examView(){
         <div class="field"><label>考试日期</label><input class="inp" data-epx="examDate" data-i="${i}" type="date" value="${esc(it.examDate)}"></div>
         <div class="field" style="align-self:flex-end"><button class="btn ghost" data-act="goto归纳" data-归纳="${esc(it.归纳)}">跳转到归纳</button></div>
       </div>
-      <p style="color:var(--warn);font-weight:700">${cd}</p>
       <div class="field"><label>内容</label><textarea class="txt" data-epx="content" data-i="${i}">${esc(it.content)}</textarea></div>
       <div class="field"><label>错题（可传图）</label>
         <div class="row" style="align-items:center">${it.wrongImg?`<img src="${it.wrongImg}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}<button class="btn ghost" data-act="epxImg" data-i="${i}">上传</button></div>
@@ -579,6 +597,7 @@ function countdown(date){
   const d=Math.ceil((t-n)/86400000);
   return d>0?`距考试还有 ${d} 天`:(d===0?'今天考试！':'考试已过去 '+Math.abs(d)+' 天');
 }
+function cdDays(date){const t=Date.parse(date),n=Date.now();if(isNaN(t))return null;return Math.ceil((t-n)/86400000);}
 
 /* ---------- Work ---------- */
 function workView(){
@@ -639,11 +658,13 @@ const EN_DIALOG=[
 ];
 function englishView(){
   const e=state.english;
+  if(e.cursor==null)e.cursor=Math.floor(Date.now()/86400000)%EN_DIALOG.length;
   const dayIdx=Math.floor(Date.now()/86400000)%EN_DIALOG.length;
-  const dlg=EN_DIALOG[dayIdx];
-  const stars=e.collected.includes(dayIdx)?'⭐':'☆';
-  const prof=e.proficient.includes(dayIdx)?'✅':'';
-  const unp=e.unproficient.includes(dayIdx)?'⚠️':'';
+  const cur=e.cursor;
+  const dlg=EN_DIALOG[cur];
+  const stars=e.collected.includes(cur)?'⭐':'☆';
+  const prof=e.proficient.includes(cur)?'✅':'';
+  const unp=e.unproficient.includes(cur)?'⚠️':'';
   const words=dlg.en.split(' ');
   const wordSpans=words.map(w=>`<span class="eword" data-word="${esc(w.replace(/[^a-zA-Z']/g,''))}" style="cursor:pointer;border-bottom:1px dotted var(--accent)">${esc(w)}</span>`).join(' ');
   const dateStr=todayStr();
@@ -661,22 +682,21 @@ function englishView(){
   }
   return `<div class="sec-title">🔤 English</div>
     <div class="card">
-      <div class="row" style="align-items:center">
-        <div><div style="font-size:12px;color:var(--muted)">${dateStr} · 打卡第 ${(Object.keys(e.history).length)} 天</div>
-        <div style="font-size:20px;font-weight:700;margin:4px 0">${wordSpans}</div></div>
-        <div style="margin-left:auto;text-align:right">
-          <button class="btn ghost" data-act="enUnfam" data-i="${dayIdx}">📒 陌生词</button><br>
-          <button class="btn ghost" data-act="enStar" data-i="${dayIdx}">${stars} 收藏</button><br>
-          <button class="btn ghost" data-act="enProf" data-i="${dayIdx}">熟练 ${prof}</button>
-          <button class="btn ghost" data-act="enUnprof" data-i="${dayIdx}">不熟练 ${unp}</button>
-        </div>
+      <div class="en-top-actions">
+        <button class="btn ghost en-mini" data-act="enUnfam" data-i="${cur}">📒 陌生词</button>
+        <button class="btn ghost en-mini" data-act="enStar" data-i="${cur}">${stars} 收藏</button>
+        <button class="btn ghost en-mini" data-act="enProf" data-i="${cur}">熟练 ${prof}</button>
+        <button class="btn ghost en-mini" data-act="enUnprof" data-i="${cur}">不熟练 ${unp}</button>
+        <button class="btn ghost en-mini" data-act="enNext" data-i="${cur}">🔄 刷新句子</button>
       </div>
+      <div style="font-size:12px;color:var(--muted);margin:8px 0 2px">${dateStr} · 打卡第 ${Object.keys(e.history).length} 天</div>
+      <div style="font-size:20px;font-weight:700;margin:4px 0">${wordSpans}</div>
       <div style="font-size:13px;color:var(--muted);margin:6px 0">${esc(dlg.zh)}</div>
       <div style="font-size:12px;color:#999">${esc(dlg.ph)}</div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-act="enSpeak" data-i="${dayIdx}">🔊 发音</button>
-        <button class="btn ghost" data-act="enRecord" data-i="${dayIdx}">🎤 我的发音</button>
-        <button class="btn ghost" data-act="enScene" data-i="${dayIdx}">场景：${esc(dlg.sc)}</button>
+        <button class="btn" data-act="enSpeak" data-i="${cur}">🔊 发音</button>
+        <button class="btn ghost" data-act="enRecord" data-i="${cur}">🎤 我的发音</button>
+        <button class="btn ghost" data-act="enScene" data-i="${cur}">场景：${esc(dlg.sc)}</button>
       </div>
       <div id="enResult" style="margin-top:8px;color:var(--accent)"></div>
     </div>
@@ -816,7 +836,7 @@ function moneyView(){
     <div class="card" style="background:#fff7e6">
       <div class="row">
         <div style="flex:1"><div style="font-size:13px;color:var(--muted)">可动用余额</div><div style="font-size:24px;font-weight:800">${mask(m.avail)}</div></div>
-        <div style="flex:1"><div style="font-size:13px;color:var(--muted)">不可动用余额</div><div style="font-size:24px;font-weight:800">${mask(m.locked)}</div></div>
+        <div style="flex:1"><div style="font-size:13px;color:var(--muted)">不可动用余额（双击编辑）</div><div data-act="moneyEditLocked" title="双击编辑不可动用余额" style="font-size:24px;font-weight:800;cursor:pointer">${mask(m.locked)}</div></div>
       </div>
       <button class="btn ghost" data-act="moneyReveal">${reveal?'🔒 隐藏余额':'👁 双击显示（需密码）'}</button>
       <button class="btn ghost" data-act="moneySetPwd" style="margin-left:6px">设置隐私密码</button>
@@ -846,6 +866,11 @@ function setupListeners(){
   main.addEventListener('click',onClick);
   // 进入输入框即记录一步，便于"撤销上一步"
   main.addEventListener('focusin',e=>{const t=e.target;if(t.matches&&t.matches('input,textarea,select'))pushUndo();});
+  // 双击编辑「不可动用余额」
+  main.addEventListener('dblclick',e=>{
+    const b=e.target.closest('[data-act="moneyEditLocked"]');
+    if(b){const v=prompt('设置不可动用余额（数字）：',state.money.locked);if(v!==null){const n=parseFloat(v);if(!isNaN(n)){state.money.locked=n;recalcMoney();save();render();}} }
+  });
   $('#sidebar').addEventListener('click',e=>{
     const go=e.target.closest('[data-go]');
     if(go){current=go.dataset.go;if(window.innerWidth<=760)$('#sidebar').classList.remove('open');render();}
@@ -865,7 +890,7 @@ function onInput(e){
   if(t.dataset.ep){const it=state.diet.exercise[+t.dataset.i].items[+t.dataset.j];it[t.dataset.ep]=t.value;save();return;}
   if(t.dataset.ex){const x=state.diet.exercise[+t.dataset.i];x[t.dataset.ex]=t.value;save();return;}
   if(t.dataset.gp){const arr=currentArr();arr[+t.dataset.i][t.dataset.gp]=t.value;save();return;}
-  if(t.dataset.epx){const it=state.exam.data[state.exam.examTab||state.exam.tabs[0]][+t.dataset.i];it[t.dataset.epx]=t.value;save();return;}
+  if(t.dataset.epx){const it=state.exam.data[state.exam.examTab||state.exam.tabs[0]][+t.dataset.i];it[t.dataset.epx]=t.value;save();if(t.dataset.epx==='examDate'&&e.type==='change')render();return;}
   if(t.dataset.wk){const it=state.work.data[state.work.workTab||state.work.tabs[0]][+t.dataset.i];it[t.dataset.wk]=t.value;save();return;}
   if(t.dataset.rm){const it=state.remind.data[state.remind.remindTab||state.remind.tabs[0]][+t.dataset.i];it[t.dataset.rm]=t.value;save();return;}
   if(t.dataset.lm){const m=state.love.memory[+t.dataset.i];m[t.dataset.lm]=t.value;save();return;}
@@ -974,12 +999,14 @@ function onClick(e){
     case 'dietTab':state.diet.dietTab=b.dataset.t;render();break;
     case 'recAdd':state.diet.recipes.push({name:'',ing:'',steps:'',cal:'',img:''});save();render();break;
     case 'recDel':state.diet.recipes.splice(i,1);save();render();break;
-    case 'recImg':case 'reRec':recognizeRecipe(i);break;
+    case 'recImg':recognizeRecipe(i);break;
+    case 'reRec':{const f=mockFood();state.diet.recipes[i].cal=f.cal;save();render();toast('已重新识别：'+f.name+' '+f.cal+' kcal');break;}
     case 'wAdd':state.diet.weight.push({height:'',weight:'',date:todayStr()});save();render();break;
     case 'wDel':state.diet.weight.splice(i,1);save();render();break;
     case 'mealAdd':state.diet.meals.push({date:todayStr(),type:'早餐',img:'',food:'',cal:''});save();render();break;
     case 'mealDel':state.diet.meals.splice(i,1);save();render();break;
-    case 'mealImg':case 'mealRe':recognizeMeal(i);break;
+    case 'mealImg':recognizeMeal(i);break;
+    case 'mealRe':{const f=mockFood();state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;save();render();toast('已重新识别：'+f.name+' '+f.cal+' kcal');break;}
     case 'exAdd':state.diet.exercise.push({date:todayStr(),checkin:todayStr(),kind:'健身房',items:[{proj:'',dur:'',cal:'',feel:''}]});save();render();break;
     case 'exDel':state.diet.exercise.splice(i,1);save();render();break;
     case 'exKind':state.diet.exercise[i].kind=b.dataset.k;save();render();break;
@@ -1034,6 +1061,7 @@ function onClick(e){
     case 'moneyReveal':moneyReveal();break;
     case 'moneySetPwd':{const v=prompt('设置隐私密码：',state.privacyPassword);if(v){state.privacyPassword=v;save();toast('密码已设置');}break;}
     case 'enUnfam':showUnknownBook();break;
+    case 'enNext':{if(state.english.cursor==null)state.english.cursor=Math.floor(Date.now()/86400000)%EN_DIALOG.length;state.english.cursor=(state.english.cursor+1)%EN_DIALOG.length;save();render();break;}
   }
 }
 
@@ -1127,19 +1155,12 @@ function moodCellClick(key){
 
 /* ---------- AI mock recognition ---------- */
 const FOOD_DB={'苹果':52,'香蕉':93,'米饭':116,'面条':110,'鸡胸肉':133,'鸡蛋':147,'牛奶':54,'面包':265,'汉堡':295,'披萨':266,'沙拉':89,'牛肉':250,'猪肉':143,'鱼':120,'酸奶':72,'燕麦':367,'土豆':77,'番茄':18,'黄瓜':15,'橙':47,'西瓜':30,'巧克力':546,'可乐':43,'咖啡':2,'奶茶':400,'草莓':32,'西兰花':34,'玉米':106,'三文鱼':208};
+function mockFood(){const keys=Object.keys(FOOD_DB);const k=keys[(Math.random()*keys.length)|0];return{name:k,cal:FOOD_DB[k]};}
 function recognizeRecipe(i){
-  const keys=Object.keys(FOOD_DB);const pick=keys[(Math.random()*keys.length)|0];
-  state.diet.recipes[i].cal=FOOD_DB[pick];
-  // optionally set an image if none
-  if(!state.diet.recipes[i].img){pickImage(src=>{state.diet.recipes[i].img=src;save();render();});}
-  save();render();toast('已识别热量：'+pick+' '+FOOD_DB[pick]+' kcal（可修改/重新识别）');
+  pickImage(src=>{const f=mockFood();state.diet.recipes[i].img=src;state.diet.recipes[i].cal=f.cal;save();render();toast('已识别：'+f.name+' '+f.cal+' kcal（可修改）');});
 }
 function recognizeMeal(i){
-  const keys=Object.keys(FOOD_DB);const pick=keys[(Math.random()*keys.length)|0];
-  state.diet.meals[i].food=pick;
-  state.diet.meals[i].cal=FOOD_DB[pick];
-  if(!state.diet.meals[i].img){pickImage(src=>{state.diet.meals[i].img=src;save();render();});}
-  save();render();toast('已识别：'+pick+' '+FOOD_DB[pick]+' kcal');
+  pickImage(src=>{const f=mockFood();state.diet.meals[i].img=src;state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;save();render();toast('已识别：'+f.name+' '+f.cal+' kcal');});
 }
 
 /* ---------- Money ---------- */
@@ -1150,12 +1171,11 @@ function moneyAdd(){
   recalcMoney();save();render();
 }
 function recalcMoney(){
-  let avail=0,locked=0;
-  // simple: all income/expense affect avail; '锁定' category goes to locked
-  for(const r of state.money.records){
-    if(r.cat==='不可动用')locked+=r.amount;else avail+=r.amount;
-  }
-  state.money.avail=avail;state.money.locked=locked;
+  // 可动用余额 = 所有收入/支出记录的净额；不可动用余额为手动设置（双击编辑），不随记录变动
+  let avail=0;
+  for(const r of state.money.records){avail+=r.amount;}
+  state.money.avail=avail;
+  if(typeof state.money.locked!=='number')state.money.locked=0;
 }
 function moneyReveal(){
   if(state.money.reveal){state.money.reveal=false;save();render();return;}
