@@ -76,6 +76,7 @@ input,textarea,select{font-family:inherit;}
 .btn{border-radius:12px;padding:9px 16px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;}
 .btn.ghost{background:#fff;border:2px solid var(--accent);color:var(--accent);}
 .btn.warn{background:var(--warn);}
+.btn-x{flex-shrink:0;width:30px;height:30px;border-radius:50%;border:none;background:var(--warn);color:#fff;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
 .card{background:#fff;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.05);}
 .row{display:flex;gap:10px;flex-wrap:wrap;}
 .row .field{flex:1;min-width:120px;}
@@ -196,21 +197,28 @@ const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,9);
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const esc=s=>(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function imgToDataURL(file,maxW=800){
+function imgToDataURL(file,maxW=420){
   return new Promise(res=>{
     const r=new FileReader();
     r.onload=e=>{
       const img=new Image();
       img.onload=()=>{
-        const c=document.createElement('canvas');
-        const sc=Math.min(1,maxW/img.width);
-        c.width=img.width*sc;c.height=img.height*sc;
-        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-        res(c.toDataURL('image/jpeg',0.8));
+        try{
+          let w=img.width||maxW,h=img.height||maxW;
+          const sc=Math.min(1,maxW/w);
+          w=Math.max(1,Math.round(w*sc));h=Math.max(1,Math.round(h*sc));
+          const c=document.createElement('canvas');
+          c.width=w;c.height=h;
+          c.getContext('2d').drawImage(img,0,0,w,h);
+          let url=c.toDataURL('image/jpeg',0.6);
+          if(url&&url.length>600000)url=c.toDataURL('image/jpeg',0.4);
+          res(url);
+        }catch(_){res(e.target.result);}
       };
       img.onerror=()=>res(e.target.result);
       img.src=e.target.result;
     };
+    r.onerror=()=>res(null);
     r.readAsDataURL(file);
   });
 }
@@ -442,7 +450,10 @@ function dietView(){
 }
 function recipeBody(){
   const list=state.diet.recipes;
-  const cards=list.map((r,i)=>`<div class="card">
+  const cards=list.map((r,i)=>{
+    try{
+      const imgTag=(r.img&&r.img.length<800000)?`<img src="${esc(r.img)}" style="width:80px;height:80px;object-fit:cover;border-radius:10px" onerror="this.style.display='none'">`:(r.img?'<span style="color:var(--muted);font-size:12px">图片过大，已略去预览</span>':'');
+      return `<div class="card">
     <div class="row">
       <div class="field" style="flex:2"><label>名称</label><input class="inp rounded" data-rp="name" data-i="${i}" value="${esc(r.name)}"></div>
       <div class="field"><label>单份热量(kcal)</label><input class="inp rounded" data-rp="cal" data-i="${i}" value="${esc(r.cal)}"></div>
@@ -451,13 +462,17 @@ function recipeBody(){
     <div class="field"><label>制作步骤</label><textarea class="txt" data-rp="steps" data-i="${i}">${esc(r.steps)}</textarea></div>
     <div class="field"><label>食物图（上传自动识别热量）</label>
       <div class="row" style="align-items:center">
-        ${r.img?`<img src="${esc(r.img)}" style="width:80px;height:80px;object-fit:cover;border-radius:10px">`:''}
+        ${imgTag}
         <button class="btn ghost" data-act="recImg" data-i="${i}">上传图片识别</button>
         <button class="btn ghost" data-act="reRec" data-i="${i}">重新识别</button>
       </div>
     </div>
     <button class="btn warn" data-act="recDel" data-i="${i}">删除此食谱</button>
-  </div>`).join('');
+  </div>`;
+    }catch(_){
+      return `<div class="card"><p style="color:var(--muted)">该食谱数据异常，可删除后重试</p><button class="btn warn" data-act="recDel" data-i="${i}">删除此食谱</button></div>`;
+    }
+  }).join('');
   return cards+`<button class="btn" data-act="recAdd">＋ 新增食谱</button>`;
 }
 function weightBody(){
@@ -509,7 +524,10 @@ function weightBody(){
 }
 function mealBody(){
   const list=state.diet.meals;
-  const cards=list.map((m,i)=>`<div class="card">
+  const cards=list.map((m,i)=>{
+    try{
+      const imgTag=(m.img&&m.img.length<800000)?`<img src="${esc(m.img)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px" onerror="this.style.display='none'">`:(m.img?'<span style="color:var(--muted);font-size:12px">图片过大，已略去预览</span>':'');
+      return `<div class="card">
     <div class="row">
       <div class="field"><label>日期</label><input class="inp" data-mp="date" data-i="${i}" type="date" value="${esc(m.date)}"></div>
       <div class="field"><label>餐次</label>
@@ -518,7 +536,7 @@ function mealBody(){
     </div>
     <div class="field"><label>食物图（自动识别食物名+热量）</label>
       <div class="row" style="align-items:center">
-        ${m.img?`<img src="${esc(m.img)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}
+        ${imgTag}
         <button class="btn ghost" data-act="mealImg" data-i="${i}">上传识别</button>
         <button class="btn ghost" data-act="mealRe" data-i="${i}">重新识别</button>
       </div>
@@ -528,7 +546,11 @@ function mealBody(){
       <div class="field"><label>单餐热量(kcal)</label><input class="inp" data-mp="cal" data-i="${i}" value="${esc(m.cal)}"></div>
     </div>
     <button class="btn warn" data-act="mealDel" data-i="${i}">删除</button>
-  </div>`).join('')+`<button class="btn" data-act="mealAdd">＋ 添加饮食记录</button>`;
+  </div>`;
+    }catch(_){
+      return `<div class="card"><p style="color:var(--muted)">该记录数据异常，可删除后重试</p><button class="btn warn" data-act="mealDel" data-i="${i}">删除</button></div>`;
+    }
+  }).join('')+`<button class="btn" data-act="mealAdd">＋ 添加饮食记录</button>`;
   const total=list.reduce((s,m)=>s+(parseFloat(m.cal)||0),0);
   return cards+`<div class="card" style="background:#fff7e6"><b>当日总热量：</b>${total.toFixed(0)} kcal</div>`;
 }
@@ -782,10 +804,10 @@ function loveMemory(){
     const cd=m.date?`据 ${m.date} 还有 ${Math.ceil((Date.parse(m.date)-Date.now())/86400000)} 天`:'';
     return `<div class="bubble">
       <div class="row" style="align-items:center;gap:8px">
-        <span class="heart" style="font-size:20px;flex-shrink:0">💗</span>
-        <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" style="flex:0 0 auto;min-width:160px;font-size:14px;padding:8px 10px">
-        <input class="inp rounded" data-lm="text" data-i="${i}" value="${esc(m.text)}" placeholder="纪念日描述…" style="flex:1;min-width:0;font-size:14px;padding:8px 10px">
-        <button class="btn warn" data-act="lmDel" data-i="${i}" style="flex-shrink:0;padding:8px 14px;font-size:14px">删除</button>
+        <span class="heart" style="font-size:18px;flex-shrink:0">💗</span>
+        <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" title="日期" style="flex:0 0 auto;width:128px;min-width:0;font-size:14px;padding:8px 8px">
+        <input class="inp rounded" data-lm="text" data-i="${i}" value="${esc(m.text)}" placeholder="纪念日描述…" style="flex:1 1 auto;min-width:0;font-size:14px;padding:8px 10px">
+        <button class="btn-x" data-act="lmDel" data-i="${i}" title="删除">×</button>
       </div>
       <div class="cd" style="margin-top:6px;padding-left:4px">${cd}</div>
     </div>`;
@@ -1196,10 +1218,24 @@ function moodCellClick(key){
 const FOOD_DB={'苹果':52,'香蕉':93,'米饭':116,'面条':110,'鸡胸肉':133,'鸡蛋':147,'牛奶':54,'面包':265,'汉堡':295,'披萨':266,'沙拉':89,'牛肉':250,'猪肉':143,'鱼':120,'酸奶':72,'燕麦':367,'土豆':77,'番茄':18,'黄瓜':15,'橙':47,'西瓜':30,'巧克力':546,'可乐':43,'咖啡':2,'奶茶':400,'草莓':32,'西兰花':34,'玉米':106,'三文鱼':208};
 function mockFood(){const keys=Object.keys(FOOD_DB);const k=keys[(Math.random()*keys.length)|0];return{name:k,cal:FOOD_DB[k]};}
 function recognizeRecipe(i){
-  pickImage(src=>{const f=mockFood();state.diet.recipes[i].img=src;state.diet.recipes[i].cal=f.cal;save();render();toast('已识别：'+f.name+' '+f.cal+' kcal（可修改）');});
+  pickImage(src=>{
+    if(!src){toast('图片读取失败，请重试');return;}
+    const f=mockFood();
+    const prev=state.diet.recipes[i].img;
+    state.diet.recipes[i].img=src;state.diet.recipes[i].cal=f.cal;
+    try{save();render();toast('已识别：'+f.name+' '+f.cal+' kcal（可修改）');}
+    catch(_){state.diet.recipes[i].img=prev;render();toast('存储空间不足，图片未保存（请清理其他图片）');}
+  });
 }
 function recognizeMeal(i){
-  pickImage(src=>{const f=mockFood();state.diet.meals[i].img=src;state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;save();render();toast('已识别：'+f.name+' '+f.cal+' kcal');});
+  pickImage(src=>{
+    if(!src){toast('图片读取失败，请重试');return;}
+    const f=mockFood();
+    const prev=state.diet.meals[i].img;
+    state.diet.meals[i].img=src;state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;
+    try{save();render();toast('已识别：'+f.name+' '+f.cal+' kcal');}
+    catch(_){state.diet.meals[i].img=prev;render();toast('存储空间不足，图片未保存（请清理其他图片）');}
+  });
 }
 
 /* ---------- Money ---------- */
