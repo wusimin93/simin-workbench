@@ -27,7 +27,7 @@ input,textarea,select{font-family:inherit;}
 
 /* ===== Layout ===== */
 #app{display:flex;height:100vh;overflow:hidden;}
-#sidebar{width:210px;flex:0 0 210px;background:var(--cream);border-right:2px solid var(--line);display:flex;flex-direction:column;transition:transform .25s;}
+#sidebar{width:210px;flex:0 0 210px;background:var(--cream);border-right:2px solid var(--line);display:flex;flex-direction:column;transition:transform .25s,margin-left .25s;}
 #sidebar .brand{display:flex;align-items:center;gap:8px;padding:14px 12px;border-bottom:1px dashed var(--line);position:relative;}
 #sidebar .brand .logo{font-size:22px;font-weight:700;color:var(--accent);}
 #sidebar .brand .tools{margin-left:auto;display:flex;gap:4px;}
@@ -152,6 +152,10 @@ input,textarea,select{font-family:inherit;}
   .view{padding:14px;}
   .color-grid{grid-template-columns:repeat(6,1fr);}
 }
+@media(min-width:761px){
+  /* 桌面：向左滑动隐藏侧边栏（折叠，主区域自动扩展） */
+  #app.side-hidden #sidebar{margin-left:-210px;}
+}
 .pwd-mask{filter:blur(6px);}
 
 /* background image layers */
@@ -209,7 +213,9 @@ function imgToDataURL(file,maxW=800){
 }
 function pickImage(cb){
   const i=document.createElement('input');i.type='file';i.accept='image/*';
-  i.onchange=async()=>{if(i.files[0])cb(await imgToDataURL(i.files[0]));};
+  i.style.position='fixed';i.style.left='-9999px';i.style.top='-9999px';
+  document.body.appendChild(i);
+  i.onchange=async()=>{if(i.files[0]){cb(await imgToDataURL(i.files[0]));}document.body.removeChild(i);};
   i.click();
 }
 
@@ -301,9 +307,12 @@ function setPath(p,v){const ks=p.split('.');let o=state;for(let i=0;i<ks.length-
    RENDER
    ========================================================= */
 let current='home';
+let loveLastTap=0,loveLastIdx=-1;
 function render(){
   renderNav();
   renderMain();
+  const sb=$('#sidebar');
+  if(sb)sb.style.backgroundColor=state.bgColors['sidebar']||'var(--cream)';
   const ub=$('#btnUndo');if(ub)ub.title='撤销「'+moduleName(current)+'」';
 }
 function renderNav(){
@@ -564,24 +573,23 @@ function genericView(c){
 /* ---------- Exam (备考) ---------- */
 function examView(){
   const d=state.exam;const tab=d.examTab||d.tabs[0];
+  d.dates=d.dates||{};
   const tabs=d.tabs.map(t=>`<div class="sub-tab ${tab===t?'active':''}" data-act="examTab" data-t="${t}">${t}</div>`).join('');
   const sumBtn=`<button class="btn ghost" data-act="exam归纳" style="margin-bottom:12px">📚 我的归纳</button>`;
+  const ed=d.dates[tab];
+  const left=ed?cdDays(ed):null;
+  const cdBanner=left==null
+    ? `<div class="exam-cd"><span class="cd-sub">未设置考试日期</span></div>`
+    : `<div class="exam-cd"><div class="cd-num">${left>0?'还剩 '+left+' 天':left===0?'今天考试！':'已过去 '+Math.abs(left)+' 天'}</div><div class="cd-sub">考试日期：${esc(ed)}</div></div>`;
+  const dateBar=`<div class="card"><div class="field" style="flex:2"><label>本页考试日期（设置后自动倒计时）</label><input class="inp" data-edate="1" type="date" value="${esc(ed)}"></div></div>`;
   d.data[tab]=d.data[tab]||[];
   const cards=d.data[tab].map((it,i)=>{
-    const left=it.examDate?cdDays(it.examDate):null;
-    const cdBanner=left==null
-      ? `<div class="exam-cd"><span class="cd-sub">未设置考试日期</span></div>`
-      : `<div class="exam-cd"><div class="cd-num">${left>0?'还剩 '+left+' 天':left===0?'今天考试！':'已过去 '+Math.abs(left)+' 天'}</div><div class="cd-sub">考试日期：${esc(it.examDate)}</div></div>`;
     return `<div class="card">
-      ${cdBanner}
       <div class="row">
         <div class="field" style="flex:2"><label>标题</label><input class="inp" data-epx="title" data-i="${i}" value="${esc(it.title)}"></div>
         <div class="field"><label>归纳分类</label><input class="inp" data-epx="归纳" data-i="${i}" value="${esc(it.归纳)}" placeholder="如：行测"></div>
       </div>
-      <div class="row">
-        <div class="field"><label>考试日期</label><input class="inp" data-epx="examDate" data-i="${i}" type="date" value="${esc(it.examDate)}"></div>
-        <div class="field" style="align-self:flex-end"><button class="btn ghost" data-act="goto归纳" data-归纳="${esc(it.归纳)}">跳转到归纳</button></div>
-      </div>
+      <div style="margin:6px 0"><button class="btn ghost" data-act="goto归纳" data-归纳="${esc(it.归纳)}">跳转到归纳</button></div>
       <div class="field"><label>内容</label><textarea class="txt" data-epx="content" data-i="${i}">${esc(it.content)}</textarea></div>
       <div class="field"><label>错题（可传图）</label>
         <div class="row" style="align-items:center">${it.wrongImg?`<img src="${it.wrongImg}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}<button class="btn ghost" data-act="epxImg" data-i="${i}">上传</button></div>
@@ -590,7 +598,7 @@ function examView(){
       <button class="btn warn" data-act="epxDel" data-i="${i}">删除</button>
     </div>`;
   }).join('');
-  return `<div class="sec-title">📚 备考</div><div class="sub-tabs">${tabs}</div>${sumBtn}${cards}<button class="btn" data-act="epxAdd">＋ 新增</button>`;
+  return `<div class="sec-title">📚 备考</div><div class="sub-tabs">${tabs}</div>${sumBtn}${cdBanner}${dateBar}${cards}<button class="btn" data-act="epxAdd">＋ 新增</button>`;
 }
 function countdown(date){
   const t=Date.parse(date),n=Date.now();if(isNaN(t))return '';
@@ -723,7 +731,7 @@ function loveView(){
   const anniv=L.anniversary?Math.floor((Date.now()-Date.parse(L.anniversary))/86400000):'—';
   const today=todayStr();
   const moodDaily=L.moodDaily[today]||'🙂';
-  const topImgs=L.images.map((s,i)=>`<div style="position:relative;display:inline-block"><img class="top-img" src="${s}"><button data-act="loveImgDel" data-i="${i}" style="position:absolute;top:-6px;right:-6px;background:#e0556e;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px">×</button></div>`).join('');
+  const topImgs=L.images.map((s,i)=>`<img class="top-img" src="${s}" data-act="loveImgDel" data-i="${i}" title="双击删除图片" style="cursor:pointer">`).join('');
   const tabs=['纪念日','愿望清单','心情汇总','碎碎念'].map(t=>`<div class="sub-tab ${tab===t?'active':''}" data-act="loveTab" data-t="${t}">${t}</div>`).join('');
   const addBtn=`<div class="sub-tab" data-act="loveAddTab">＋</div>`;
   let body='';
@@ -733,6 +741,9 @@ function loveView(){
   else if(tab==='碎碎念')body=loveSecret();
   else body=loveCustom(tab);
   return `<div class="love" style="background:${pageBg('love')}">
+    <div style="display:flex;justify-content:flex-end;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      ${topImgs}<button class="btn ghost" data-act="loveImgAdd" style="margin-left:4px">＋图片</button>
+    </div>
     <div class="love-top">
       <div>
         <div class="days">相恋 <b>${anniv}</b> 天</div>
@@ -741,7 +752,6 @@ function loveView(){
         </div>
         <div class="days" style="font-size:13px;font-weight:500;margin-top:4px">${today} · 心情 <button class="mood-btn" style="padding:4px 10px;font-size:13px" data-act="loveMood">${moodDaily}</button></div>
       </div>
-      <div style="margin-left:auto">${topImgs}<button class="btn ghost" data-act="loveImgAdd" style="margin-left:6px">＋图片</button></div>
     </div>
     <div class="sub-tabs">${tabs}${addBtn}</div>
     <div class="content">${body}</div>
@@ -891,6 +901,7 @@ function onInput(e){
   if(t.dataset.ex){const x=state.diet.exercise[+t.dataset.i];x[t.dataset.ex]=t.value;save();return;}
   if(t.dataset.gp){const arr=currentArr();arr[+t.dataset.i][t.dataset.gp]=t.value;save();return;}
   if(t.dataset.epx){const it=state.exam.data[state.exam.examTab||state.exam.tabs[0]][+t.dataset.i];it[t.dataset.epx]=t.value;save();if(t.dataset.epx==='examDate'&&e.type==='change')render();return;}
+  if(t.dataset.edate!==undefined){state.exam.dates[state.exam.examTab||state.exam.tabs[0]]=t.value;save();render();return;}
   if(t.dataset.wk){const it=state.work.data[state.work.workTab||state.work.tabs[0]][+t.dataset.i];it[t.dataset.wk]=t.value;save();return;}
   if(t.dataset.rm){const it=state.remind.data[state.remind.remindTab||state.remind.tabs[0]][+t.dataset.i];it[t.dataset.rm]=t.value;save();return;}
   if(t.dataset.lm){const m=state.love.memory[+t.dataset.i];m[t.dataset.lm]=t.value;save();return;}
@@ -1039,7 +1050,12 @@ function onClick(e){
     case 'loveAddTab':{const name=prompt('新按钮名称：');if(name){state.love.customTabs=state.love.customTabs||[];state.love.customTabs.push(name);state.love.secret.custom=state.love.secret.custom||{};state.love.secret.custom[name]=state.love.secret.custom[name]||[];state.love.tab=name;save();render();}break;}
     case 'loveMood':emojiPicker(v=>{state.love.moodDaily[todayStr()]=v;save();render();});break;
     case 'loveImgAdd':pickImage(src=>{state.love.images.push(src);save();render();});break;
-    case 'loveImgDel':state.love.images.splice(i,1);save();render();break;
+    case 'loveImgDel':{
+      const now=Date.now();
+      if(now-loveLastTap<400&&loveLastIdx===i){state.love.images.splice(i,1);loveLastTap=0;save();render();}
+      else{loveLastTap=now;loveLastIdx=i;toast('再点一次（双击图片）删除');}
+      break;
+    }
     case 'lmAdd':state.love.memory.push({date:'',text:''});save();render();break;
     case 'lmDel':state.love.memory.splice(i,1);save();render();break;
     case 'lwAdd':state.love[b.dataset.k].push({text:'',date:''});save();render();break;
@@ -1355,7 +1371,30 @@ $('#btnAdmin').onclick=openAdmin;
 $('#btnExport').onclick=openExport;
 $('#btnManualSave').onclick=()=>save(true);
 $('#btnUndo').onclick=()=>undo();
-$('#hamburger').onclick=()=>$('#sidebar').classList.toggle('open');
+function toggleSidebar(show){
+  const sb=$('#sidebar'),app=$('#app');
+  if(window.innerWidth<=760){
+    if(show===true)sb.classList.add('open');
+    else if(show===false)sb.classList.remove('open');
+    else sb.classList.toggle('open');
+  }else{
+    if(show===true)app.classList.remove('side-hidden');
+    else if(show===false)app.classList.add('side-hidden');
+    else app.classList.toggle('side-hidden');
+  }
+}
+$('#hamburger').onclick=()=>toggleSidebar();
+// 滑动手势：向左划隐藏侧边栏，向右划显示
+(function(){
+  const app=$('#app');let sx=0,sy=0,swiping=false;
+  app.addEventListener('touchstart',e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;swiping=true;},{passive:true});
+  app.addEventListener('touchend',e=>{
+    if(!swiping)return;swiping=false;
+    const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy)*1.4)return; // 仅响应明显横向滑动
+    toggleSidebar(dx>0); // 右滑(>0)显示，左滑隐藏
+  },{passive:true});
+})();
 setupListeners();
 render();
 // register service worker (PWA offline)
