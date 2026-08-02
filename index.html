@@ -114,7 +114,8 @@ input,textarea,select{font-family:inherit;}
 .love .days b{font-size:26px;color:#e0556e;}
 .love .top-img{width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px dashed #f3a9bb;}
 .bubble{border:2px dashed #f3a9bb;border-radius:18px;padding:14px 16px;background:#fff;margin-bottom:12px;position:relative;font-size:15px;}
-.lm-bubble{padding:18px 18px;font-size:16px;border-width:3px;border-color:#f0a0b8;min-height:64px;display:flex;flex-direction:column;justify-content:center;width:100%;box-sizing:border-box;}
+.lm-bubble{position:relative;padding:18px 18px;font-size:16px;border-width:3px;border-color:#f0a0b8;min-height:64px;display:flex;flex-direction:column;justify-content:center;width:100%;box-sizing:border-box;padding-right:46px;}
+.lm-x{position:absolute;top:10px;right:10px;margin:0;}
 .lm-cd{margin-top:8px;padding-left:2px;font-size:11px;color:var(--muted);line-height:1.4;}
 .lm-add-btn{margin-top:8px;display:inline-block;padding:10px 24px;font-size:15px;border-radius:12px;}
 .bubble .cd{font-size:11px;color:#e0556e;margin-top:4px;}
@@ -305,6 +306,20 @@ function load(){
   // 彻底清理旧版遗留的食物图片 base64（不再保存图片，只识别热量），避免撑爆存储
   if(Array.isArray(state.diet.recipes))state.diet.recipes.forEach(r=>{if(r&&r.img){delete r.img;}});
   if(Array.isArray(state.diet.meals))state.diet.meals.forEach(m=>{if(m&&m.img){delete m.img;}});
+  // 饮食数据迁移：旧格式 {date,type,food,cal} → 新格式 {date,items:[{food,cal}]}，并按日期合并（同一天并入同一记录）
+  migrateMeals();
+}
+function migrateMeals(){
+  const arr=Array.isArray(state.diet.meals)?state.diet.meals:[];
+  if(!arr.length)return;
+  const isNew=arr[0]&&arr[0].items; // 已是新格式
+  if(isNew){
+    state.diet.meals=arr.map(r=>({date:r.date||'',items:Array.isArray(r.items)?r.items:[]}));
+    return;
+  }
+  const byDate={};
+  arr.forEach(m=>{m=m||{};const date=m.date||'';if(!byDate[date])byDate[date]={date,items:[]};byDate[date].items.push({food:m.food||'',cal:m.cal||''});});
+  state.diet.meals=Object.keys(byDate).map(k=>byDate[k]);
 }
 function migrate(old){
   const d=defaultState();
@@ -476,12 +491,6 @@ function recipeBody(){
     </div>
     <div class="field"><label>食材</label><input class="inp rounded" data-rp="ing" data-i="${i}" value="${esc(r.ing)}"></div>
     <div class="field"><label>制作步骤</label><textarea class="txt" data-rp="steps" data-i="${i}">${esc(r.steps)}</textarea></div>
-    <div class="field"><label>食物图（上传仅识别热量，不保存图片）</label>
-      <div class="row" style="align-items:center">
-        <button class="btn ghost" data-act="recImg" data-i="${i}">上传图片识别</button>
-        <button class="btn ghost" data-act="reRec" data-i="${i}">重新识别</button>
-      </div>
-    </div>
     <button class="btn warn" data-act="recDel" data-i="${i}">删除此食谱</button>
   </div>`;
   }).join('');
@@ -536,30 +545,30 @@ function weightBody(){
 }
 function mealBody(){
   const list=Array.isArray(state.diet.meals)?state.diet.meals:[];
+  const today=todayStr();
+  const tRec=list.find(m=>m&&m.date===today);
+  const tTotal=tRec?(tRec.items||[]).reduce((s,it)=>s+(parseFloat(it.cal)||0),0):0;
   const cards=list.map((m,i)=>{
-    m=m||{};
+    m=m||{date:'',items:[]};
+    const items=(m.items||[]).map((it,j)=>`<div class="row" style="align-items:center;gap:6px;margin-bottom:6px">
+        <input class="inp" data-mi="food" data-i="${i}" data-j="${j}" value="${esc(it.food)}" placeholder="食物名称" style="flex:1;min-width:0">
+        <input class="inp" data-mi="cal" data-i="${i}" data-j="${j}" type="number" value="${esc(it.cal)}" placeholder="kcal" style="width:92px;flex-shrink:0">
+        <button class="btn-x" data-act="miDel" data-i="${i}" data-j="${j}" title="删除">×</button>
+      </div>`).join('');
+    const total=(m.items||[]).reduce((s,it)=>s+(parseFloat(it.cal)||0),0);
     return `<div class="card">
-    <div class="row">
-      <div class="field"><label>日期</label><input class="inp" data-mp="date" data-i="${i}" type="date" value="${esc(m.date)}"></div>
-      <div class="field"><label>餐次</label>
-        <select class="inp" data-mp="type" data-i="${i}">${['早餐','午餐','晚餐','加餐'].map(t=>`<option ${m.type===t?'selected':''}>${t}</option>`).join('')}</select>
+      <div class="row" style="align-items:flex-end">
+        <div class="field"><label>日期</label><input class="inp" data-mdate="${i}" type="date" value="${esc(m.date)}"></div>
+        <button class="btn warn" data-act="mealDel" data-i="${i}" style="margin-bottom:8px">删除当天</button>
       </div>
-    </div>
-    <div class="field"><label>食物图（上传仅识别食物名+热量，不保存图片）</label>
-      <div class="row" style="align-items:center">
-        <button class="btn ghost" data-act="mealImg" data-i="${i}">上传识别</button>
-        <button class="btn ghost" data-act="mealRe" data-i="${i}">重新识别</button>
-      </div>
-    </div>
-    <div class="row">
-      <div class="field" style="flex:2"><label>食物名称（可手动修改/添加）</label><input class="inp" data-mp="food" data-i="${i}" value="${esc(m.food)}" placeholder="识别或手动输入"></div>
-      <div class="field"><label>单餐热量(kcal)</label><input class="inp" data-mp="cal" data-i="${i}" value="${esc(m.cal)}"></div>
-    </div>
-    <button class="btn warn" data-act="mealDel" data-i="${i}">删除</button>
-  </div>`;
-  }).join('')+`<button class="btn" data-act="mealAdd">＋ 添加饮食记录</button>`;
-  const total=list.reduce((s,m)=>s+(parseFloat(m.cal)||0),0);
-  return cards+`<div class="card" style="background:#fff7e6"><b>当日总热量：</b>${total.toFixed(0)} kcal</div>`;
+      ${items}
+      <button class="btn ghost" data-act="miAdd" data-i="${i}">＋ 加食物</button>
+      <div style="margin-top:8px;font-weight:700;color:var(--accent)">本日总热量：${total.toFixed(0)} kcal</div>
+    </div>`;
+  }).join('');
+  return cards
+    +`<div class="card" style="background:#fff7e6"><b>今日总热量：</b>${tTotal.toFixed(0)} kcal</div>`
+    +`<button class="btn" data-act="mealAdd">＋ 添加饮食记录</button>`;
 }
 function exerciseBody(){
   const list=state.diet.exercise;
@@ -811,11 +820,11 @@ function loveMemory(){
     m=m||{};
     const cd=m.date?`距 ${m.date} 还有 ${Math.ceil((Date.parse(m.date)-Date.now())/86400000)} 天`:'';
     return `<div class="bubble lm-bubble">
+      <button class="btn-x lm-x" data-act="lmDel" data-i="${i}" title="删除">×</button>
       <div class="row" style="align-items:center;gap:8px">
         <span class="heart" style="font-size:18px;flex-shrink:0">💗</span>
         <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" title="日期" style="flex:0 0 auto;width:120px;min-width:0;font-size:14px;padding:8px 8px">
         <input class="inp rounded" data-lm="text" data-i="${i}" value="${esc(m.text)}" placeholder="纪念日描述…" style="flex:1 1 auto;min-width:0;font-size:15px;padding:8px 10px">
-        <button class="btn-x" data-act="lmDel" data-i="${i}" title="删除" style="margin-left:auto">×</button>
       </div>
       <div class="lm-cd">${cd}</div>
     </div>`;
@@ -948,7 +957,8 @@ function onInput(e){
     if(bi)bi.value=(w.height&&w.weight)?(w.weight/Math.pow(w.height/100,2)).toFixed(1):'—';
     if(e.type==='change')render();
     save();return;}
-  if(t.dataset.mp){const m=state.diet.meals[+t.dataset.i];m[t.dataset.mp]=t.value;save();return;}
+  if(t.dataset.mdate){state.diet.meals[+t.dataset.mdate].date=t.value;save();render();return;}
+  if(t.dataset.mi){const it=state.diet.meals[+t.dataset.i].items[+t.dataset.j];it[t.dataset.mi]=t.value;save();return;}
   if(t.dataset.ep){const it=state.diet.exercise[+t.dataset.i].items[+t.dataset.j];it[t.dataset.ep]=t.value;save();return;}
   if(t.dataset.ex){const x=state.diet.exercise[+t.dataset.i];x[t.dataset.ex]=t.value;save();return;}
   if(t.dataset.gp){const arr=currentArr();arr[+t.dataset.i][t.dataset.gp]=t.value;save();return;}
@@ -1060,16 +1070,22 @@ function onClick(e){
     case 'addTodo':{state.todo.records[todayStr()].items.push({text:'',done:false});save();render();break;}
     case 'showDone':toast('已办事项已划线显示在待办列表下方');break;
     case 'dietTab':state.diet.dietTab=b.dataset.t;render();break;
-    case 'recAdd':state.diet.recipes.push({name:'',ing:'',steps:'',cal:'',img:''});save();render();break;
+    case 'recAdd':state.diet.recipes.push({name:'',ing:'',steps:'',cal:''});save();render();break;
     case 'recDel':state.diet.recipes.splice(i,1);save();render();break;
-    case 'recImg':recognizeRecipe(i);break;
-    case 'reRec':{const f=mockFood();state.diet.recipes[i].cal=f.cal;save();render();toast('已重新识别：'+f.name+' '+f.cal+' kcal');break;}
     case 'wAdd':state.diet.weight.push({height:'',weight:'',date:todayStr()});save();render();break;
     case 'wDel':state.diet.weight.splice(i,1);save();render();break;
-    case 'mealAdd':state.diet.meals.push({date:todayStr(),type:'早餐',img:'',food:'',cal:''});save();render();break;
+    case 'mealAdd':{
+      const t=todayStr();
+      if(state.diet.meals.find(m=>m&&m.date===t)){
+        toast('今天已有饮食记录，已合并到同一天，可直接编辑');
+      }else{
+        state.diet.meals.push({date:t,items:[{food:'',cal:''}]});
+      }
+      save();render();break;
+    }
+    case 'miAdd':{const m=state.diet.meals[+i];m.items=m.items||[];m.items.push({food:'',cal:''});save();render();break;}
+    case 'miDel':{const m=state.diet.meals[+i];m.items.splice(+j,1);save();render();break;}
     case 'mealDel':state.diet.meals.splice(i,1);save();render();break;
-    case 'mealImg':recognizeMeal(i);break;
-    case 'mealRe':{const f=mockFood();state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;save();render();toast('已重新识别：'+f.name+' '+f.cal+' kcal');break;}
     case 'exAdd':state.diet.exercise.push({date:todayStr(),checkin:todayStr(),kind:'健身房',items:[{proj:'',dur:'',cal:'',feel:''}]});save();render();break;
     case 'exDel':state.diet.exercise.splice(i,1);save();render();break;
     case 'exKind':state.diet.exercise[i].kind=b.dataset.k;save();render();break;
@@ -1220,28 +1236,6 @@ function moodCellClick(key){
     const m=e.target.dataset.m;if(m){cur.emoji=m;ov.querySelector('#moodEmoji').textContent=m;}
   };
   document.body.appendChild(ov);
-}
-
-/* ---------- AI mock recognition ---------- */
-const FOOD_DB={'苹果':52,'香蕉':93,'米饭':116,'面条':110,'鸡胸肉':133,'鸡蛋':147,'牛奶':54,'面包':265,'汉堡':295,'披萨':266,'沙拉':89,'牛肉':250,'猪肉':143,'鱼':120,'酸奶':72,'燕麦':367,'土豆':77,'番茄':18,'黄瓜':15,'橙':47,'西瓜':30,'巧克力':546,'可乐':43,'咖啡':2,'奶茶':400,'草莓':32,'西兰花':34,'玉米':106,'三文鱼':208};
-function mockFood(){const keys=Object.keys(FOOD_DB);const k=keys[(Math.random()*keys.length)|0];return{name:k,cal:FOOD_DB[k]};}
-function recognizeRecipe(i){
-  pickImage(src=>{
-    if(!src){toast('图片读取失败，请重试');return;}
-    const f=mockFood();
-    state.diet.recipes[i].cal=f.cal;
-    try{save();}catch(_){}
-    render();toast('已识别：'+f.name+' '+f.cal+' kcal（可修改）');
-  });
-}
-function recognizeMeal(i){
-  pickImage(src=>{
-    if(!src){toast('图片读取失败，请重试');return;}
-    const f=mockFood();
-    state.diet.meals[i].food=f.name;state.diet.meals[i].cal=f.cal;
-    try{save();}catch(_){}
-    render();toast('已识别：'+f.name+' '+f.cal+' kcal');
-  });
 }
 
 /* ---------- Money ---------- */
