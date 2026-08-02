@@ -106,11 +106,14 @@ input,textarea,select{font-family:inherit;}
 
 /* ===== Love ===== */
 .love{background:var(--pink);}
-.love .love-top{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;background:rgba(255,255,255,.5);border-radius:16px;padding:14px;margin-bottom:14px;}
+.love .love-top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:rgba(255,255,255,.5);border-radius:16px;padding:14px;margin-bottom:14px;}
+.love .love-info{flex:1;min-width:200px;}
+.love .love-imgs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .love .days{font-size:15px;font-weight:700;}
 .love .days b{font-size:26px;color:#e0556e;}
 .love .top-img{width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px dashed #f3a9bb;}
-.bubble{border:2px dashed #f3a9bb;border-radius:18px;padding:10px 12px;background:#fff;margin-bottom:10px;position:relative;}
+.bubble{border:2px dashed #f3a9bb;border-radius:18px;padding:14px 16px;background:#fff;margin-bottom:12px;position:relative;font-size:15px;}
+.lm-text{min-height:72px;width:100%;border:none;background:#fff7fb;border-radius:12px;padding:10px;font-size:15px;resize:vertical;box-sizing:border-box;}
 .bubble .cd{font-size:11px;color:#e0556e;margin-top:4px;}
 .wish-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .wish-col{background:#fff;border:2px dashed #f3a9bb;border-radius:16px;padding:10px;}
@@ -251,7 +254,7 @@ function defaultState(){
     career:[],remind:{tabs:['生活','做人','工作','恋爱','赚钱','其它'],data:{}},
     love:{anniversary:'',moodDaily:{},images:[],
       memory:[],wishTravel:[],wishFood:[],moodCalendar:{},
-      secret:{habits:[],quarrel:[],heart:[]}},
+      secret:{habits:[],quarrel:[],heart:[],data:{},custom:{},extra:[]}},
     note:[],money:{avail:0,locked:0,records:[],reveal:false},
     future:[]
   };
@@ -269,6 +272,14 @@ function load(){
   const d=defaultState();
   for(const k in d){if(state[k]===undefined)state[k]=d[k];}
   if(!state.diet.tabs)state.diet.tabs=d.diet.tabs;
+  // 兜底：确保恋爱/碎碎念相关字段始终存在，避免旧数据导致渲染或交互报错
+  const L=state.love||(state.love={});
+  if(!L.secret)L.secret={};
+  if(!L.secret.data)L.secret.data={};
+  if(!L.secret.custom)L.secret.custom={};
+  if(!L.secret.extra)L.secret.extra=[];
+  if(!Array.isArray(L.wishTravel))L.wishTravel=[];
+  if(!Array.isArray(L.wishFood))L.wishFood=[];
 }
 function migrate(old){
   const d=defaultState();
@@ -348,14 +359,21 @@ function renderMain(){
   main.style.backgroundSize='cover';
   main.style.backgroundPosition='center';
   main.style.backgroundRepeat='no-repeat';
-  if(current==='home'){
-    main.innerHTML=`<div class="content">${homeView()}</div>`;
-  }else{
-    const c=state.columns.find(c=>c.id===current);
-    const views={todo:todoView,diet:dietView,grad:gradView,exam:examView,work:workView,english:englishView,career:careerView,remind:remindView,love:loveView,note:noteView,money:moneyView,future:futureView};
-    const fn=views[c.type]||genericView;
-    main.innerHTML=`<div class="content">${fn(c)}</div>`;
+  let inner='';
+  try{
+    if(current==='home'){
+      inner=homeView();
+    }else{
+      const c=state.columns.find(c=>c.id===current);
+      const views={todo:todoView,diet:dietView,grad:gradView,exam:examView,work:workView,english:englishView,career:careerView,remind:remindView,love:loveView,note:noteView,money:moneyView,future:futureView};
+      const fn=views[c.type]||genericView;
+      inner=fn(c);
+    }
+  }catch(err){
+    // 兜底：单个模块数据损坏时，保证点击导航始终有响应，而不是“没反应”
+    inner=`<div class="card" style="color:var(--warn)"><b>该模块渲染出错</b><p style="font-size:13px;margin:6px 0">${esc(String((err&&err.message)||err))}</p><button class="btn" data-act="resetModule" data-k="${esc(current)}">重置该模块数据</button></div>`;
   }
+  main.innerHTML=`<div class="content">${inner}</div>`;
 }
 
 /* ---------- Home ---------- */
@@ -407,9 +425,12 @@ function calendarHTML(){
 
 /* ---------- Diet (减脂小妙招) ---------- */
 function dietView(){
-  const d=state.diet;
-  d.tabs=d.tabs||['食谱','体重','饮食','运动'];
-  d.recipes=d.recipes||[];d.weight=d.weight||[];d.meals=d.meals||[];d.exercise=d.exercise||[];
+  const d=(state.diet&&typeof state.diet==='object')?state.diet:{};
+  d.tabs=(Array.isArray(d.tabs)&&d.tabs.length)?d.tabs:['食谱','体重','饮食','运动'];
+  d.recipes=Array.isArray(d.recipes)?d.recipes:[];
+  d.weight=Array.isArray(d.weight)?d.weight:[];
+  d.meals=Array.isArray(d.meals)?d.meals:[];
+  d.exercise=Array.isArray(d.exercise)?d.exercise:[];
   const tab=d.dietTab||'食谱';
   const tabs=d.tabs.map(t=>`<div class="sub-tab ${tab===t?'active':''}" data-act="dietTab" data-t="${t}">${t}</div>`).join('');
   let body='';
@@ -741,17 +762,15 @@ function loveView(){
   else if(tab==='碎碎念')body=loveSecret();
   else body=loveCustom(tab);
   return `<div class="love" style="background:${pageBg('love')}">
-    <div style="display:flex;justify-content:flex-end;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      ${topImgs}<button class="btn ghost" data-act="loveImgAdd" style="margin-left:4px">＋图片</button>
-    </div>
     <div class="love-top">
-      <div>
+      <div class="love-info">
         <div class="days">相恋 <b>${anniv}</b> 天</div>
         <div class="days" style="font-size:13px;font-weight:500;margin-top:6px">在一起日期：
           <input class="inp rounded" data-bind="love.anniversary" type="date" value="${esc(L.anniversary)}" style="max-width:172px;width:auto;display:inline-block;font-size:13px;padding:4px 8px;vertical-align:middle">
         </div>
         <div class="days" style="font-size:13px;font-weight:500;margin-top:4px">${today} · 心情 <button class="mood-btn" style="padding:4px 10px;font-size:13px" data-act="loveMood">${moodDaily}</button></div>
       </div>
+      <div class="love-imgs">${topImgs}<button class="btn ghost" data-act="loveImgAdd" style="margin-left:4px">＋图片</button></div>
     </div>
     <div class="sub-tabs">${tabs}${addBtn}</div>
     <div class="content">${body}</div>
@@ -761,12 +780,15 @@ function loveMemory(){
   const list=state.love.memory;
   return list.map((m,i)=>{
     const cd=m.date?`据 ${m.date} 还有 ${Math.ceil((Date.parse(m.date)-Date.now())/86400000)} 天`:'';
-    return `<div class="bubble"><div class="row" style="align-items:center">
-      <span class="heart">💗</span>
-      <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" style="max-width:160px">
-      <input class="inp rounded" data-lm="text" data-i="${i}" value="${esc(m.text)}" placeholder="描述…" style="flex:1">
-      <button class="btn warn" data-act="lmDel" data-i="${i}">删除</button>
-    </div><div class="cd">${cd}</div></div>`;
+    return `<div class="bubble">
+      <div class="row" style="align-items:center;margin-bottom:8px">
+        <span class="heart">💗</span>
+        <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" style="max-width:160px">
+        <div class="cd" style="flex:1">${cd}</div>
+        <button class="btn warn" data-act="lmDel" data-i="${i}">删除</button>
+      </div>
+      <textarea class="txt lm-text" data-lm="text" data-i="${i}" placeholder="描述这段纪念日…">${esc(m.text)}</textarea>
+    </div>`;
   }).join('')+`<button class="btn" data-act="lmAdd">＋ 添加纪念日</button>`;
 }
 function loveWish(){
@@ -774,7 +796,7 @@ function loveWish(){
   const col=(arr,key,title)=>`<div class="wish-col"><h4>${title}</h4>${
     arr.map((it,i)=>`<div class="bubble"><input class="inp rounded" data-lw="text" data-k="${key}" data-i="${i}" value="${esc(it.text)}" style="border:none;background:transparent;width:100%"><div class="row" style="margin-top:4px"><input class="inp rounded" data-lw="date" data-k="${key}" data-i="${i}" type="date" value="${esc(it.date)}" style="max-width:140px"><button class="btn warn" data-act="lwDel" data-k="${key}" data-i="${i}">×</button></div></div>`).join('')
   }<button class="btn ghost" data-act="lwAdd" data-k="${key}">＋ 添加</button></div>`;
-  return `<div class="wish-cols">${col(travel,'travel','🧳 旅游')}${col(food,'food','🍜 美食')}</div>`;
+  return `<div class="wish-cols">${col(travel,'wishTravel','🧳 旅游')}${col(food,'wishFood','🍜 美食')}</div>`;
 }
 function loveMoodCal(){
   const now=new Date();const y=now.getFullYear(),m=now.getMonth();
@@ -1078,6 +1100,7 @@ function onClick(e){
     case 'moneySetPwd':{const v=prompt('设置隐私密码：',state.privacyPassword);if(v){state.privacyPassword=v;save();toast('密码已设置');}break;}
     case 'enUnfam':showUnknownBook();break;
     case 'enNext':{if(state.english.cursor==null)state.english.cursor=Math.floor(Date.now()/86400000)%EN_DIALOG.length;state.english.cursor=(state.english.cursor+1)%EN_DIALOG.length;save();render();break;}
+    case 'resetModule':{const k=b.dataset.k;if(moduleSection(k)){if(confirm('确定重置「'+moduleName(k)+'」的数据为该模块的初始状态？此操作不可撤销。')){assignModule(k,JSON.parse(JSON.stringify(defaultState()[k]||{})));save();render();toast('已重置「'+moduleName(k)+'」');}}break;}
   }
 }
 
