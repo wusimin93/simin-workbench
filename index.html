@@ -113,11 +113,11 @@ input,textarea,select{font-family:inherit;}
 .love .days b{font-size:26px;color:#e0556e;}
 .love .top-img{width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px dashed #f3a9bb;}
 .bubble{border:2px dashed #f3a9bb;border-radius:18px;padding:14px 16px;background:#fff;margin-bottom:12px;position:relative;font-size:15px;}
-.lm-text{min-height:72px;width:100%;border:none;background:#fff7fb;border-radius:12px;padding:10px;font-size:15px;resize:vertical;box-sizing:border-box;}
+.lm-add-btn{margin-top:8px;display:inline-block;padding:10px 24px;font-size:15px;border-radius:12px;}
 .bubble .cd{font-size:11px;color:#e0556e;margin-top:4px;}
-.wish-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.wish-col{background:#fff;border:2px dashed #f3a9bb;border-radius:16px;padding:10px;}
-.wish-col h4{margin:0 0 8px;color:#e0556e;}
+.wish-cols{display:flex;flex-direction:column;gap:16px;}
+.wish-sec{background:#fff;border:2px dashed #f3a9bb;border-radius:16px;padding:14px;}
+.wish-sec h4{margin:0 0 10px;color:#e0556e;font-size:16px;}
 .heart{color:#e0556e;}
 .small-heart{font-size:13px;}
 
@@ -379,7 +379,7 @@ function renderMain(){
 /* ---------- Home ---------- */
 function homeView(){
   const h=state.home;
-  const imgs=h.images.map((src,i)=>`<div class="img-cell"><img src="${src}"><div class="ops"><button data-act="homeImgRep" data-i="${i}">替换</button><button data-act="homeImgDel" data-i="${i}">删除</button></div></div>`).join('');
+  const imgs=h.images.map((src,i)=>`<div class="img-cell"><img src="${esc(src)}"><div class="ops"><button data-act="homeImgRep" data-i="${i}">替换</button><button data-act="homeImgDel" data-i="${i}">删除</button></div></div>`).join('');
   return `<div class="home">
     <div class="sec-title">🏠 首页</div>
     <textarea class="motto" data-bind="home.motto" placeholder="写下今天的箴言…">${esc(h.motto)}</textarea>
@@ -451,7 +451,7 @@ function recipeBody(){
     <div class="field"><label>制作步骤</label><textarea class="txt" data-rp="steps" data-i="${i}">${esc(r.steps)}</textarea></div>
     <div class="field"><label>食物图（上传自动识别热量）</label>
       <div class="row" style="align-items:center">
-        ${r.img?`<img src="${r.img}" style="width:80px;height:80px;object-fit:cover;border-radius:10px">`:''}
+        ${r.img?`<img src="${esc(r.img)}" style="width:80px;height:80px;object-fit:cover;border-radius:10px">`:''}
         <button class="btn ghost" data-act="recImg" data-i="${i}">上传图片识别</button>
         <button class="btn ghost" data-act="reRec" data-i="${i}">重新识别</button>
       </div>
@@ -518,7 +518,7 @@ function mealBody(){
     </div>
     <div class="field"><label>食物图（自动识别食物名+热量）</label>
       <div class="row" style="align-items:center">
-        ${m.img?`<img src="${m.img}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}
+        ${m.img?`<img src="${esc(m.img)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}
         <button class="btn ghost" data-act="mealImg" data-i="${i}">上传识别</button>
         <button class="btn ghost" data-act="mealRe" data-i="${i}">重新识别</button>
       </div>
@@ -613,7 +613,7 @@ function examView(){
       <div style="margin:6px 0"><button class="btn ghost" data-act="goto归纳" data-归纳="${esc(it.归纳)}">跳转到归纳</button></div>
       <div class="field"><label>内容</label><textarea class="txt" data-epx="content" data-i="${i}">${esc(it.content)}</textarea></div>
       <div class="field"><label>错题（可传图）</label>
-        <div class="row" style="align-items:center">${it.wrongImg?`<img src="${it.wrongImg}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}<button class="btn ghost" data-act="epxImg" data-i="${i}">上传</button></div>
+        <div class="row" style="align-items:center">${it.wrongImg?`<img src="${esc(it.wrongImg)}" style="width:70px;height:70px;object-fit:cover;border-radius:8px">`:''}<button class="btn ghost" data-act="epxImg" data-i="${i}">上传</button></div>
       </div>
       <div class="field"><label>反思</label><textarea class="txt" data-epx="reflect" data-i="${i}">${esc(it.reflect)}</textarea></div>
       <button class="btn warn" data-act="epxDel" data-i="${i}">删除</button>
@@ -752,7 +752,7 @@ function loveView(){
   const anniv=L.anniversary?Math.floor((Date.now()-Date.parse(L.anniversary))/86400000):'—';
   const today=todayStr();
   const moodDaily=L.moodDaily[today]||'🙂';
-  const topImgs=L.images.map((s,i)=>`<img class="top-img" src="${s}" data-act="loveImgDel" data-i="${i}" title="双击删除图片" style="cursor:pointer">`).join('');
+  const topImgs=L.images.map((s,i)=>`<img class="top-img" src="${esc(s)}" data-act="loveImgDel" data-i="${i}" title="双击删除图片" style="cursor:pointer">`).join('');
   const tabs=['纪念日','愿望清单','心情汇总','碎碎念'].map(t=>`<div class="sub-tab ${tab===t?'active':''}" data-act="loveTab" data-t="${t}">${t}</div>`).join('');
   const addBtn=`<div class="sub-tab" data-act="loveAddTab">＋</div>`;
   let body='';
@@ -781,22 +781,22 @@ function loveMemory(){
   return list.map((m,i)=>{
     const cd=m.date?`据 ${m.date} 还有 ${Math.ceil((Date.parse(m.date)-Date.now())/86400000)} 天`:'';
     return `<div class="bubble">
-      <div class="row" style="align-items:center;margin-bottom:8px">
-        <span class="heart">💗</span>
-        <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" style="max-width:160px">
-        <div class="cd" style="flex:1">${cd}</div>
-        <button class="btn warn" data-act="lmDel" data-i="${i}">删除</button>
+      <div class="row" style="align-items:center;gap:8px">
+        <span class="heart" style="font-size:20px;flex-shrink:0">💗</span>
+        <input class="inp rounded" data-lm="date" data-i="${i}" type="date" value="${esc(m.date)}" style="flex:0 0 auto;min-width:160px;font-size:14px;padding:8px 10px">
+        <input class="inp rounded" data-lm="text" data-i="${i}" value="${esc(m.text)}" placeholder="纪念日描述…" style="flex:1;min-width:0;font-size:14px;padding:8px 10px">
+        <button class="btn warn" data-act="lmDel" data-i="${i}" style="flex-shrink:0;padding:8px 14px;font-size:14px">删除</button>
       </div>
-      <textarea class="txt lm-text" data-lm="text" data-i="${i}" placeholder="描述这段纪念日…">${esc(m.text)}</textarea>
+      <div class="cd" style="margin-top:6px;padding-left:4px">${cd}</div>
     </div>`;
-  }).join('')+`<button class="btn" data-act="lmAdd">＋ 添加纪念日</button>`;
+  }).join('')+`<button class="btn lm-add-btn" data-act="lmAdd">＋ 添加纪念日</button>`;
 }
 function loveWish(){
   const travel=state.love.wishTravel, food=state.love.wishFood;
-  const col=(arr,key,title)=>`<div class="wish-col"><h4>${title}</h4>${
-    arr.map((it,i)=>`<div class="bubble"><input class="inp rounded" data-lw="text" data-k="${key}" data-i="${i}" value="${esc(it.text)}" style="border:none;background:transparent;width:100%"><div class="row" style="margin-top:4px"><input class="inp rounded" data-lw="date" data-k="${key}" data-i="${i}" type="date" value="${esc(it.date)}" style="max-width:140px"><button class="btn warn" data-act="lwDel" data-k="${key}" data-i="${i}">×</button></div></div>`).join('')
-  }<button class="btn ghost" data-act="lwAdd" data-k="${key}">＋ 添加</button></div>`;
-  return `<div class="wish-cols">${col(travel,'wishTravel','🧳 旅游')}${col(food,'wishFood','🍜 美食')}</div>`;
+  const sec=(arr,key,title)=>`<div class="wish-sec"><h4>${title}</h4>${
+    arr.map((it,i)=>`<div class="bubble" style="display:flex;align-items:center;gap:8px"><span class="heart">💗</span><input class="inp rounded" data-lw="text" data-k="${key}" data-i="${i}" value="${esc(it.text)}" placeholder="写下一个愿望…" style="flex:1;border:none;background:transparent;font-size:15px;padding:10px 12px"><button class="btn warn" data-act="lwDel" data-k="${key}" data-i="${i}" style="flex-shrink:0">删除</button></div>`).join('')
+  }<button class="btn ghost" data-act="lwAdd" data-k="${key}" style="margin-top:8px">＋ 添加</button></div>`;
+  return `${sec(travel,'wishTravel','🧳 旅游')}${sec(food,'wishFood','🍜 美食')}`;
 }
 function loveMoodCal(){
   const now=new Date();const y=now.getFullYear(),m=now.getMonth();
@@ -846,7 +846,7 @@ function noteView(){
   const cards=list.map((n,i)=>`<div class="card" style="border:2px solid #b9d4f0;background:${pageBg('note')}">
     <textarea class="txt" data-nt="content" data-i="${i}" style="border:none;background:transparent;min-height:80px">${esc(n.content)}</textarea>
     <div class="row" style="align-items:center;margin-top:6px">
-      ${n.img?`<img src="${n.img}" style="width:60px;height:60px;object-fit:cover;border-radius:8px">`:''}
+      ${n.img?`<img src="${esc(n.img)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px">`:''}
       <button class="btn ghost" data-act="ntImg" data-i="${i}">${n.img?'替换':'+图片'}</button>
       <button class="btn warn" data-act="ntDel" data-i="${i}">删除</button>
     </div>
