@@ -716,7 +716,10 @@ function loveView(){
     <div class="love-top">
       <div>
         <div class="days">相恋 <b>${anniv}</b> 天</div>
-        <div class="days" style="font-size:13px;font-weight:500">${today} · 心情 <button class="mood-btn" style="padding:4px 10px;font-size:13px" data-act="loveMood">${moodDaily}</button></div>
+        <div class="days" style="font-size:13px;font-weight:500;margin-top:6px">在一起日期：
+          <input class="inp rounded" data-bind="love.anniversary" type="date" value="${esc(L.anniversary)}" style="max-width:172px;width:auto;display:inline-block;font-size:13px;padding:4px 8px;vertical-align:middle">
+        </div>
+        <div class="days" style="font-size:13px;font-weight:500;margin-top:4px">${today} · 心情 <button class="mood-btn" style="padding:4px 10px;font-size:13px" data-act="loveMood">${moodDaily}</button></div>
       </div>
       <div style="margin-left:auto">${topImgs}<button class="btn ghost" data-act="loveImgAdd" style="margin-left:6px">＋图片</button></div>
     </div>
@@ -850,7 +853,7 @@ function setupListeners(){
 }
 function onInput(e){
   const t=e.target;
-  if(t.dataset.bind){setPath(t.dataset.bind,t.value);save();return;}
+  if(t.dataset.bind){setPath(t.dataset.bind,t.value);save();if(t.dataset.bind==='love.anniversary'&&e.type==='change')render();return;}
   if(t.dataset.todo!==undefined){const i=+t.dataset.todo;state.todo.records[todayStr()].items[i].text=t.value;save();return;}
   if(t.dataset.rp){const r=state.diet.recipes[+t.dataset.i];r[t.dataset.rp]=t.value;save();return;}
   if(t.dataset.wp){const w=state.diet.weight[+t.dataset.i];w[t.dataset.wp]=t.value;
